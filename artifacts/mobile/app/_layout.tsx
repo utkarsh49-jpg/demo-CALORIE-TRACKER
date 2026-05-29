@@ -14,15 +14,18 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { NutritionProvider } from "@/context/NutritionContext";
+import { setBaseUrl } from "@workspace/api-client-react";
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
+    <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
@@ -48,9 +51,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
+          <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
-              <RootLayoutNav />
+              <NutritionProvider>
+                <RootLayoutNav />
+              </NutritionProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: nutrition
+    description: AI-powered nutrition analysis
 paths:
   /healthz:
     get:
@@ -24,6 +26,93 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /nutrition/analyze:
+    post:
+      operationId: analyzeFood
+      tags: [nutrition]
+      summary: Analyze food from image
+      description: Uses AI vision to identify food and return nutritional breakdown
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeFoodRequest"
+      responses:
+        "200":
+          description: Food analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodAnalysis"
+        "400":
+          description: Bad request
+        "500":
+          description: AI analysis failed
+
+  /nutrition/barcode:
+    post:
+      operationId: lookupBarcode
+      tags: [nutrition]
+      summary: Look up nutrition by barcode
+      description: Returns nutritional info for a scanned product barcode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BarcodeRequest"
+      responses:
+        "200":
+          description: Food analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodAnalysis"
+        "404":
+          description: Product not found
+
+  /nutrition/coach:
+    post:
+      operationId: getCoachAdvice
+      tags: [nutrition]
+      summary: Get AI voice coach advice
+      description: Returns personalized coaching message and optional TTS audio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoachRequest"
+      responses:
+        "200":
+          description: Coaching advice with optional audio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoachResponse"
+
+  /nutrition/suggest:
+    post:
+      operationId: getMealSuggestions
+      tags: [nutrition]
+      summary: Get AI meal suggestions
+      description: Returns meal suggestions based on remaining macro targets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestRequest"
+      responses:
+        "200":
+          description: Meal suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuggestResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +123,124 @@ components:
       required:
         - status
 
+    AnalyzeFoodRequest:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Base64 encoded image data
+      required:
+        - imageBase64
+
+    BarcodeRequest:
+      type: object
+      properties:
+        barcode:
+          type: string
+          description: Product barcode number
+      required:
+        - barcode
+
+    FoodAnalysis:
+      type: object
+      properties:
+        name:
+          type: string
+        calories:
+          type: number
+        protein:
+          type: number
+        carbs:
+          type: number
+        fat:
+          type: number
+        servingSize:
+          type: string
+        description:
+          type: string
+      required:
+        - name
+        - calories
+        - protein
+        - carbs
+        - fat
+        - servingSize
+        - description
+
+    CoachRequest:
+      type: object
+      properties:
+        totalCalories:
+          type: number
+        totalProtein:
+          type: number
+        totalCarbs:
+          type: number
+        totalFat:
+          type: number
+        goalCalories:
+          type: number
+        goalProtein:
+          type: number
+        goalCarbs:
+          type: number
+        goalFat:
+          type: number
+        streak:
+          type: number
+        mealCount:
+          type: number
+      required:
+        - totalCalories
+        - totalProtein
+        - totalCarbs
+        - totalFat
+        - goalCalories
+        - goalProtein
+        - goalCarbs
+        - goalFat
+        - streak
+        - mealCount
+
+    CoachResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        audioBase64:
+          type: string
+          description: Optional base64 MP3 audio
+      required:
+        - message
+
+    SuggestRequest:
+      type: object
+      properties:
+        remainingCalories:
+          type: number
+        remainingProtein:
+          type: number
+        remainingCarbs:
+          type: number
+        remainingFat:
+          type: number
+        todayMeals:
+          type: array
+          items:
+            type: string
+      required:
+        - remainingCalories
+        - remainingProtein
+        - remainingCarbs
+        - remainingFat
+        - todayMeals
+
+    SuggestResponse:
+      type: object
+      properties:
+        suggestions:
+          type: array
+          items:
+            type: string
+      required:
+        - suggestions

@@ -6,17 +6,30 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#080d18"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nutrilens.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "NutriLens needs camera access to photograph your food for AI nutrition analysis.",
+        "NSPhotoLibraryUsageDescription": "NutriLens needs photo library access so you can upload food photos for nutrition analysis.",
+        "NSMicrophoneUsageDescription": "NutriLens uses the microphone for voice coaching features."
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.nutrilens.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "RECORD_AUDIO"
+      ]
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -28,7 +41,14 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "NutriLens needs access to your photos to analyze food nutrition.",
+          "cameraPermission": "NutriLens needs camera access to photograph your meals."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
