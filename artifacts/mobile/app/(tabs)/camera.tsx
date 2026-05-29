@@ -172,12 +172,17 @@ export default function CameraScreen() {
       const data = await analyzeFood.mutateAsync({ data: { imageBase64: base64 } });
       setResult(data as AnalysisResult);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      Alert.alert(
-        "Analysis Failed",
-        "Could not identify this food. Check your internet connection and try again.",
-        [{ text: "Try Again", onPress: reset }, { text: "Cancel" }]
-      );
+    } catch (err: any) {
+      const msg =
+        err?.response?.status === 402 || err?.status === 402
+          ? "Your OpenAI account has no credits. Add billing at platform.openai.com/billing"
+          : err?.response?.status === 401 || err?.status === 401
+          ? "Invalid API key. Update OPENAI_API_KEY in Replit Secrets."
+          : "Could not identify this food. Check your internet connection and try again.";
+      Alert.alert("Analysis Failed", msg, [
+        { text: "Try Again", onPress: reset },
+        { text: "Cancel" },
+      ]);
     }
   };
 

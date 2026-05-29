@@ -66,9 +66,15 @@ router.post("/analyze", async (req, res) => {
       servingSize: parsed.servingSize ?? "1 serving",
       description: parsed.description ?? "",
     });
-  } catch (err) {
+  } catch (err: any) {
     req.log.error({ err }, "Food analysis failed");
-    res.status(500).json({ error: "Food analysis failed" });
+    if (err?.status === 429 || err?.code === "insufficient_quota") {
+      res.status(402).json({ error: "OpenAI quota exceeded. Please add credits at platform.openai.com/billing" });
+    } else if (err?.status === 401) {
+      res.status(401).json({ error: "Invalid OpenAI API key. Please check your OPENAI_API_KEY secret." });
+    } else {
+      res.status(500).json({ error: "Food analysis failed" });
+    }
   }
 });
 
