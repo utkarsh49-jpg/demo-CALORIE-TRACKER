@@ -1,28 +1,18 @@
 import { Router } from "express";
-import OpenAI from "openai";
+import { ai } from "@workspace/integrations-gemini-ai";
 
 const router = Router();
-const openai = new OpenAI({ apiKey: process.env["OPENAI_API_KEY"] });
 
-const FOOD_ANALYSIS_PROMPT = `You are a precise nutritionist AI. Analyze this food image and return ONLY valid JSON (no markdown, no backticks).
+const FOOD_PROMPT = `You are a precise nutritionist AI. Analyze this food image and return ONLY valid JSON (no markdown, no backticks, no explanation).
 
-Return this exact JSON structure:
-{
-  "name": "food name (be specific, e.g. 'Grilled Chicken Breast with Rice')",
-  "calories": 450,
-  "protein": 42,
-  "carbs": 38,
-  "fat": 8,
-  "servingSize": "1 plate (~350g)",
-  "description": "Brief description of what you see and any notable nutrition facts."
-}
+Return this exact structure:
+{"name":"specific food name","calories":450,"protein":42,"carbs":38,"fat":8,"servingSize":"1 plate (~350g)","description":"Brief description of what you see."}
 
 Rules:
-- calories in kcal (number)
-- protein, carbs, fat in grams (numbers)  
-- Be accurate and realistic for visible portion sizes
+- calories in kcal (number), protein/carbs/fat in grams (numbers)
+- Be accurate for the visible portion size
 - If multiple foods, give combined totals
-- If unclear, give reasonable estimates`;
+- If image is unclear, give your best estimate`;
 
 router.post("/analyze", async (req, res) => {
   const { imageBase64 } = req.body as { imageBase64?: string };
@@ -33,27 +23,26 @@ router.post("/analyze", async (req, res) => {
   }
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 500,
-      messages: [
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
         {
           role: "user",
-          content: [
-            { type: "text", text: FOOD_ANALYSIS_PROMPT },
+          parts: [
+            { text: FOOD_PROMPT },
             {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
-                detail: "low",
+              inlineData: {
+                mimeType: "image/jpeg",
+                data: imageBase64,
               },
             },
           ],
         },
       ],
+      config: { maxOutputTokens: 8192 },
     });
 
-    const content = response.choices[0]?.message?.content ?? "{}";
+    const content = response.text ?? "{}";
     const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
@@ -66,15 +55,9 @@ router.post("/analyze", async (req, res) => {
       servingSize: parsed.servingSize ?? "1 serving",
       description: parsed.description ?? "",
     });
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err }, "Food analysis failed");
-    if (err?.status === 429 || err?.code === "insufficient_quota") {
-      res.status(402).json({ error: "OpenAI quota exceeded. Please add credits at platform.openai.com/billing" });
-    } else if (err?.status === 401) {
-      res.status(401).json({ error: "Invalid OpenAI API key. Please check your OPENAI_API_KEY secret." });
-    } else {
-      res.status(500).json({ error: "Food analysis failed" });
-    }
+    res.status(500).json({ error: "Food analysis failed" });
   }
 });
 
@@ -86,7 +69,7 @@ router.post("/barcode", async (req, res) => {
     return;
   }
 
-  // First try Open Food Facts (free, no key)
+  // Try Open Food Facts first (free, no key needed)
   try {
     const offRes = await fetch(
       `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
@@ -106,41 +89,42 @@ router.post("/barcode", async (req, res) => {
       };
     };
 
-    if (offData.status === 1 && offData.product) {
+    if (offData.status === 1 && offData.product?.product_name) {
       const p = offData.product;
       const n = p.nutriments ?? {};
-      const servingG = 100;
-
       res.json({
         name: p.product_name ?? "Unknown Product",
-        calories: Math.round((n["energy-kcal_100g"] ?? 0) * servingG) / 100,
-        protein: Math.round((n["proteins_100g"] ?? 0) * servingG) / 100,
-        carbs: Math.round((n["carbohydrates_100g"] ?? 0) * servingG) / 100,
-        fat: Math.round((n["fat_100g"] ?? 0) * servingG) / 100,
+        calories: Math.round(n["energy-kcal_100g"] ?? 0),
+        protein: Math.round(n["proteins_100g"] ?? 0),
+        carbs: Math.round(n["carbohydrates_100g"] ?? 0),
+        fat: Math.round(n["fat_100g"] ?? 0),
         servingSize: p.serving_size ?? p.quantity ?? "100g",
         description: `Scanned from barcode ${barcode}`,
       });
       return;
     }
   } catch {
-    // Fall through to AI fallback
+    // fall through to AI
   }
 
-  // AI fallback
+  // AI fallback via Gemini
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 300,
-      messages: [
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
         {
           role: "user",
-          content: `Barcode: ${barcode}. Identify this product and estimate its nutrition per standard serving. Return ONLY JSON:
-{"name":"product name","calories":200,"protein":5,"carbs":30,"fat":3,"servingSize":"1 serving (30g)","description":"brief description"}`,
+          parts: [
+            {
+              text: `Product barcode: ${barcode}. Identify this product and estimate nutrition per standard serving. Return ONLY JSON: {"name":"product name","calories":200,"protein":5,"carbs":30,"fat":3,"servingSize":"1 serving (30g)","description":"brief description"}`,
+            },
+          ],
         },
       ],
+      config: { maxOutputTokens: 8192 },
     });
 
-    const content = response.choices[0]?.message?.content ?? "{}";
+    const content = response.text ?? "{}";
     const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
@@ -184,35 +168,34 @@ router.post("/coach", async (req, res) => {
     mealCount: number;
   };
 
-  const calRemaining = goalCalories - totalCalories;
-  const proRemaining = goalProtein - totalProtein;
-
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 150,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an encouraging, concise AI nutrition coach. Give personalized advice in 1-2 sentences. Be specific, motivating, and action-oriented. Never use emojis.",
-        },
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
         {
           role: "user",
-          content: `Today's progress: ${Math.round(totalCalories)}/${goalCalories} kcal, ${Math.round(totalProtein)}/${goalProtein}g protein, ${Math.round(totalCarbs)}/${goalCarbs}g carbs, ${Math.round(totalFat)}/${goalFat}g fat. Meals logged: ${mealCount}. Current streak: ${streak} days. Calories remaining: ${Math.round(calRemaining)}. Protein remaining: ${Math.round(proRemaining)}g. Give me coaching advice.`,
+          parts: [
+            {
+              text: `You are an encouraging, concise nutrition coach. Give personalized advice in 1-2 sentences. Be specific, motivating, and action-oriented. Never use emojis.
+
+Today's progress: ${Math.round(totalCalories)}/${goalCalories} kcal, ${Math.round(totalProtein)}/${goalProtein}g protein, ${Math.round(totalCarbs)}/${goalCarbs}g carbs, ${Math.round(totalFat)}/${goalFat}g fat. Meals logged: ${mealCount}. Streak: ${streak} days. Calories remaining: ${Math.round(goalCalories - totalCalories)}. Protein remaining: ${Math.round(goalProtein - totalProtein)}g.`,
+            },
+          ],
         },
       ],
+      config: { maxOutputTokens: 8192 },
     });
 
     const message =
-      response.choices[0]?.message?.content?.trim() ??
+      response.text?.trim() ??
       "Keep tracking your meals to reach your daily goals!";
 
     res.json({ message });
   } catch (err) {
     req.log.error({ err }, "Coach advice failed");
     res.json({
-      message: "Stay consistent with your meals today — every logged entry brings you closer to your goal!",
+      message:
+        "Stay consistent with your meals today — every logged entry brings you closer to your goal!",
     });
   }
 });
@@ -229,37 +212,51 @@ router.post("/suggest", async (req, res) => {
     remainingProtein: number;
     remainingCarbs: number;
     remainingFat: number;
-    todayMeals: string[];
+    todayMeals?: string[];
   };
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 300,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a nutrition coach. Suggest 3 specific meal ideas to help hit macro targets. Be concise and practical. Return ONLY a JSON array of strings.",
-        },
+    const eaten =
+      (todayMeals ?? []).length > 0
+        ? (todayMeals ?? []).join(", ")
+        : "nothing yet";
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
         {
           role: "user",
-          content: `Remaining today: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g protein, ${Math.round(remainingCarbs)}g carbs, ${Math.round(remainingFat)}g fat. Already eaten: ${(todayMeals ?? []).length > 0 ? (todayMeals ?? []).join(", ") : "nothing yet"}. Suggest 3 meal ideas as a JSON array of strings, each under 80 chars. Example: ["Eat 200g Greek yogurt with berries for 20g protein", "Add a chicken wrap for balanced macros"]`,
+          parts: [
+            {
+              text: `You are a nutrition coach. Suggest 3 specific meal ideas. Return ONLY a JSON array of 3 strings, each under 80 characters.
+
+Remaining today: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g protein, ${Math.round(remainingCarbs)}g carbs, ${Math.round(remainingFat)}g fat.
+Already eaten: ${eaten}.
+
+Example format: ["Eat 200g Greek yogurt with berries for 20g protein","Add a chicken wrap for balanced macros","Have a handful of almonds for healthy fats"]`,
+            },
+          ],
         },
       ],
+      config: { maxOutputTokens: 8192 },
     });
 
-    const content = response.choices[0]?.message?.content ?? "[]";
+    const content = response.text ?? "[]";
     const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
     let suggestions: string[] = [];
 
     try {
       suggestions = JSON.parse(cleaned);
+      if (!Array.isArray(suggestions)) suggestions = [];
     } catch {
+      suggestions = [];
+    }
+
+    if (suggestions.length === 0) {
       suggestions = [
-        `Eat ${Math.round(remainingProtein)}g of protein-rich food like chicken or tofu`,
-        `Have a balanced meal with ${Math.round(remainingCalories / 2)} kcal for dinner`,
-        "Consider a high-protein snack like cottage cheese or a protein shake",
+        `Try ${Math.round(remainingProtein)}g of protein — chicken, fish, or tofu work well`,
+        `A balanced meal with ${Math.round(remainingCalories / 2)} kcal would hit tonight's target`,
+        "A protein shake or cottage cheese can quickly boost your protein intake",
       ];
     }
 
