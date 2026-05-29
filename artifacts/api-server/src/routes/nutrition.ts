@@ -238,7 +238,7 @@ router.post("/suggest", async (req, res) => {
         },
         {
           role: "user",
-          content: `Remaining today: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g protein, ${Math.round(remainingCarbs)}g carbs, ${Math.round(remainingFat)}g fat. Already eaten: ${todayMeals.length > 0 ? todayMeals.join(", ") : "nothing yet"}. Suggest 3 meal ideas as a JSON array of strings, each under 80 chars. Example: ["Eat 200g Greek yogurt with berries for 20g protein", "Add a chicken wrap for balanced macros"]`,
+          content: `Remaining today: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g protein, ${Math.round(remainingCarbs)}g carbs, ${Math.round(remainingFat)}g fat. Already eaten: ${(todayMeals ?? []).length > 0 ? (todayMeals ?? []).join(", ") : "nothing yet"}. Suggest 3 meal ideas as a JSON array of strings, each under 80 chars. Example: ["Eat 200g Greek yogurt with berries for 20g protein", "Add a chicken wrap for balanced macros"]`,
         },
       ],
     });
