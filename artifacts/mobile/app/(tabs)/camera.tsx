@@ -169,7 +169,7 @@ export default function CameraScreen() {
   const analyzeImage = async (base64: string, imageUri: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const data = await analyzeFood.mutateAsync({ imageBase64: base64 });
+      const data = await analyzeFood.mutateAsync({ data: { imageBase64: base64 } });
       setResult(data as AnalysisResult);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -185,7 +185,7 @@ export default function CameraScreen() {
     if (!barcode.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const data = await lookupBarcode.mutateAsync({ barcode: barcode.trim() });
+      const data = await lookupBarcode.mutateAsync({ data: { barcode: barcode.trim() } });
       setResult(data as AnalysisResult);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {

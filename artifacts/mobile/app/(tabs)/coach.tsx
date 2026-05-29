@@ -113,16 +113,18 @@ export default function CoachScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const data = await getCoachAdvice.mutateAsync({
-        totalCalories: todayTotals.calories,
-        totalProtein: todayTotals.protein,
-        totalCarbs: todayTotals.carbs,
-        totalFat: todayTotals.fat,
-        goalCalories: goals.calories,
-        goalProtein: goals.protein,
-        goalCarbs: goals.carbs,
-        goalFat: goals.fat,
-        streak,
-        mealCount: todayEntries.length,
+        data: {
+          totalCalories: todayTotals.calories,
+          totalProtein: todayTotals.protein,
+          totalCarbs: todayTotals.carbs,
+          totalFat: todayTotals.fat,
+          goalCalories: goals.calories,
+          goalProtein: goals.protein,
+          goalCarbs: goals.carbs,
+          goalFat: goals.fat,
+          streak,
+          mealCount: todayEntries.length,
+        },
       });
       const msg = (data as { message: string }).message;
       setCoachMessage(msg);
@@ -146,7 +148,7 @@ export default function CoachScreen() {
         remainingFat: Math.max(0, goals.fat - todayTotals.fat),
         todayMeals: todayEntries.map((e) => e.name),
       };
-      const data = await getMealSuggestions.mutateAsync(remaining);
+      const data = await getMealSuggestions.mutateAsync({ data: remaining });
       setSuggestions((data as { suggestions: string[] }).suggestions ?? []);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
